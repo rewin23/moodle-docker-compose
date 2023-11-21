@@ -3,6 +3,46 @@
 
 version: '2'
 services:
+  
+  traefik:
+    image: "traefik:v2.2"
+    container_name: "traefik"
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "./traefik/traefik.yml:/etc/traefik/traefik.yml"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  grafana:
+    image: grafana/grafana:6.7.3
+    container_name: grafana
+    restart: always
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${DOMINIO}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.routers.grafana.middlewares=grafana-stripprefix"
+      - "traefik.http.middlewares.grafana-stripprefix.stripprefix.prefixes=/grafana"
+    volumes:
+      - "grafana:/var/lib/grafana"
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: always
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - "prometheus:/prometheus"
+
+
   mariadb:
     image: docker.io/bitnami/mariadb:11.1
     environment:
@@ -14,12 +54,11 @@ services:
       - MARIADB_COLLATE=utf8mb4_unicode_ci
     volumes:
       - 'mariadb_data:/bitnami/mariadb'
+    networks:
+      - moodle
 
   moodle:
     image: docker.io/bitnami/moodle:4.3
-    ports:
-      - '80:8080'
-      - '443:8443'
     environment:
       - MOODLE_USERNAME=${MOODLE_USERNAME}
       - MOODLE_PASSWORD=${MOODLE_PASSWORD}
@@ -29,15 +68,32 @@ services:
       - MOODLE_DATABASE_NAME=${MARIADB_DATABASE}
       - MOODLE_DATABASE_PASSWORD=${MARIADB_PASSWORD}
       - BITNAMI_DEBUG=true
+      - MOODLE_HOST=${DOMINIO}
+      - MOODLE_REVERSEPROXY=true
+      - MOODLE_SSLPROXY=true
+      - MOODLE_LANG=es
     volumes:
-      - 'moodle_data:/bitnami/moodle'
-      - 'moodledata_data:/bitnami/moodledata'
+      - './data_ombu_moodle:/bitnami/moodle'
+      - './data_ombu_moodledata:/bitnami/moodledata'
     depends_on:
       - mariadb
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.moodle-ombu.rule=Host(`${DOMINIO:?DOMINIO variable is not set}`)"
+      - "traefik.http.routers.moodle-ombu.entrypoints=websecure"
+      - "traefik.http.routers.moodle-ombu.tls.certresolver=myresolver"
+    networks:
+      - moodle
+
+networks:
+  moodle:
+    name: moodle_network      
 volumes:
-  mariadb_data:
-    driver: local
-  moodle_data:
-    driver: local
-  moodledata_data:
-    driver: local
+    mariadb_data:
+      driver: local
+    grafana:
+      driver: local
+  # moodle_data:
+  #   driver: local
+  # moodledata_data:
+  #   driver: local
