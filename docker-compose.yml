@@ -9,7 +9,6 @@ services:
     container_name: "traefik"
     restart: always
     ports:
-      - "80:80"
       - "443:443"
       - "8080:8080"
     volumes:
@@ -41,7 +40,7 @@ services:
       - MOODLE_DATABASE_PASSWORD=${MARIADB_PASSWORD}
       - BITNAMI_DEBUG=true
       - MOODLE_EMAIL=${MOODLE_EMAIL}
-      - MOODLE_HOST=espacioombu.local
+      - MOODLE_HOST=${DOMINIO}
       - MOODLE_LANG=es
       - MOODLE_SMTP_HOST=${SMTP_HOST}
       - MOODLE_SMTP_PORT=${SMTP_PORT}
